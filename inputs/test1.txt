@@ -1,0 +1,20 @@
+# name of job file
+job_file = "jobs.txt"
+
+# name of server file
+server_file = "servers.txt"
+
+#name of dependency file, if existing, other "None"
+dependency_file = "dependencies.txt"
+
+#power cap of the whole platform, in Watts, if existing otherwise 0
+power_cap = 600
+
+# energy cap of the whole platform, in Joules, if existing, otherwise 0, 
+energy_cap = 10000
+
+#nbrepeat of periodic tasks 
+repeat = 2
+
+
+

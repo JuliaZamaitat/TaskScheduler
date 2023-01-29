@@ -1,0 +1,7 @@
+# task0 - task1 : task1 depends on task0 
+0 - 3
+0 - 4
+3 - 5
+3 - 9 
+5 - 8
+
