@@ -15,6 +15,3 @@ energy_cap = 10000
 
 #nbrepeat of periodic tasks 
 repeat = 2
-
-
-
