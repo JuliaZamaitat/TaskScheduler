@@ -1,11 +1,10 @@
-# use like python main.py fifo src/inputs/test1.txt
+# use like python3 main.py fifo src/inputs/test1.txt
 
 from src.classes.scheduler import Scheduler
 from src.file_reader import *
 
 scheduler = Scheduler(parse_servers(), metrics['power_cap'], metrics['energy_cap'], metrics['repeat'])
-print(vars(scheduler))
 
 # run the scheduler with the first argument given on the command line
 # shall be fifo, edf etc.
-scheduler.init(sys.argv[1], parse_jobs()) #TODO: bug fixes
+scheduler.start(sys.argv[1], parse_jobs())
