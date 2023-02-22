@@ -1,4 +1,9 @@
 # use like python3 main.py fifo src/inputs/test1.txt
+# use like python3 main.py edf src/inputs/test1.txt
+# use like python3 main.py round src/inputs/test1.txt
+# use like python3 main.py rms src/inputs/test1.txt
+
+
 
 from src.classes.scheduler import Scheduler
 from src.file_reader import *

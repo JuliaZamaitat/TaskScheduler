@@ -16,7 +16,7 @@ class Server:
   def shutdown(self, current_time=None):
     dup_job = None
     if self.job and current_time is not None:
-        #job.quantum = 0
+        self.job.quantum = 0
         dup_job = self.job
         print("Job with id: " + str(self.job.id) + " has been finished")    
     self.job = None

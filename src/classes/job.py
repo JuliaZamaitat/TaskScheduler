@@ -9,3 +9,4 @@ class Job:
         self.period = period
         self.start = -1
         self.end = -1
+        self.quantum = 0

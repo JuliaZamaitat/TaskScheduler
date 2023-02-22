@@ -7,12 +7,17 @@ class Scheduler:
      self.job_queue = []
      self.current_time = 0
      self.missed_deadline_count = 0
+     self.quantum = 4
 
   def printInfo(self, algorithm):
     if algorithm == 'fifo':
       print("Running FIFO")
     elif algorithm == 'edf':
-      print("Running EDF")   
+      print("Running EDF")
+    elif algorithm == 'rms':
+      print("Running Rate Monotonic") 
+    elif algorithm == 'round':
+      print("Running Round Robin")      
     else:
       print("Not supported algorithm")   
 
@@ -33,7 +38,7 @@ class Scheduler:
         if server.job:
             #server.job.relative_duration -= (server.performance * max(server.frequencies))
             server.job.relative_duration -= 1 * 1
-            #server.job.quantum += 1
+            server.job.quantum += 1
             if server.job.relative_duration <= 0:
                 server.shutdown(self.current_time)
             nb_running_jobs += 1 
@@ -56,12 +61,26 @@ class Scheduler:
         print("Job with id: " + str(job.id) + " missed its deadline")
 
 
-  def fifo(self):
+  def fifo(self):  #not preemptive
     job = self.job_queue[0]
     server = self.servers[0] #TODO: change later to select one avaiable server
     if not server.job:
       server.call(self.current_time, job)
       self.job_queue.remove(job)
+
+  def round_robin(self): #not preemptive
+    server =  self.servers[0] #TODO: change later to select one avaiable server
+    if server.job is not None and server.job.quantum == self.quantum:
+      old_job = server.job
+      server.job.end = self.current_time
+      duration_left = old_job.duration - (self.current_time - old_job.start) 
+      dup_job = server.shutdown(self.current_time)
+      dup_job.duration = duration_left
+      print("Duration of job " + str(dup_job.id) + " left: " + str(dup_job.duration))
+      self.job_queue.append(dup_job)
+    if not server.job:
+      server.call(self.current_time, self.job_queue[0])
+      self.job_queue.remove(self.job_queue[0])
 
   def edf(self): #preemptive
     deadlines = []
@@ -85,12 +104,19 @@ class Scheduler:
       self.servers[0].call(self.current_time, job)
       self.job_queue.remove(job)
 
+  def rms(self): #preemptive
+    print("edf")
+
 
   def schedule_tasks(self, algorithm):
     if algorithm == 'fifo':
       self.fifo()
     elif algorithm == 'edf':
       self.edf()
+    elif algorithm == 'round':
+      self.round_robin()    
+    elif algorithm == 'rms':
+      self.rms()  
 
 
   def jobs_left(self, jobs):
