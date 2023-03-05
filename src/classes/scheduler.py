@@ -41,7 +41,8 @@ class Scheduler:
             server.job.quantum += 1
             if server.job.relative_duration <= 0:
                 server.shutdown(self.current_time)
-            nb_running_jobs += 1 
+            else: 
+              nb_running_jobs += 1 
     return nb_running_jobs
 
   def clock(self, jobs):
@@ -54,7 +55,7 @@ class Scheduler:
       print("Running jobs: " + str(nb_running_jobs))
     if len(unscheduled) != 0:
       for job in unscheduled:
-        print("Job with ID " + str(job.id) + ", duration: " + str(job.duration) + " arrives with deadline " + str(job.deadline))
+        print("Job with ID " + str(job.id) + ", duration: " + str(job.duration) + ", period: " + str(job.period) + " arrives with deadline " + str(job.deadline))
     for job in self.job_queue:
       if job.deadline == (self.current_time):
         self.missed_deadline_count += 1
@@ -105,7 +106,23 @@ class Scheduler:
       self.job_queue.remove(job)
 
   def rms(self): #preemptive
-    print("edf")
+    priorities = []
+
+    job = sorted(self.job_queue, key=lambda j: 1/j.period if j.period > 0 else 0, reverse=True)[0]
+    if self.servers[0].job: #TODO: change to iterate through all servers
+      priorities.append(self.servers[0].job.period)
+    
+    #if all servers are full TODO: change later to  if len(deadlines) == len(servers)
+    if self.servers[0].job:
+      if (1/job.period  if job.period > 0 else 0) > (1/self.servers[0].job.period if self.servers[0].job.period > 0 else 0):
+        self.servers[0].job.end = self.current_time
+        self.job_queue.append(self.servers[0].job)
+        self.servers[0].shutdown(self.current_time)
+        self.servers[0].call(self.current_time, job)
+        self.job_queue.remove(job)
+    else:
+        self.servers[0].call(self.current_time, job)
+        self.job_queue.remove(job) 
 
 
   def schedule_tasks(self, algorithm):
