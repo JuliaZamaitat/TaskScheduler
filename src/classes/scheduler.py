@@ -1,3 +1,5 @@
+from src.classes.job import Job
+
 class Scheduler:
   def __init__(self, servers, power_cap, energy_cap, nbrepeat):
      self.servers = servers
@@ -8,6 +10,8 @@ class Scheduler:
      self.current_time = 0
      self.missed_deadline_count = 0
      self.quantum = 4
+     self.number_of_total_jobs = 0
+     self.max_iterations = 250
 
   def printInfo(self, algorithm):
     if algorithm == 'fifo':
@@ -28,7 +32,14 @@ class Scheduler:
       if job.arrival == self.current_time:
         job.deadline += self.current_time
         self.job_queue.append(job)
+        self.number_of_total_jobs += 1
         unscheduled.append(job)
+      elif job.period > 0:
+        if ((self.current_time - job.arrival) % job.period) == 0:
+          dup_job = Job(job.id, job.arrival, job.duration, job.deadline, job.period)
+          self.job_queue.append(dup_job)
+          self.number_of_total_jobs += 1
+          unscheduled.append(dup_job)
     return unscheduled
 
   #checks whether a job has finished and removes it from the server
@@ -148,7 +159,7 @@ class Scheduler:
 
   def start(self, algorithm, jobs):
     self.printInfo(algorithm)
-    while(self.jobs_left(jobs)):
+    while(self.current_time <= self.max_iterations):
       #create a queue of jobs
       #set deadlines and times for jobs
       self.clock(jobs)
@@ -158,6 +169,6 @@ class Scheduler:
       self.current_time += 1  
     
     print("\n--------------STATS----------")
-    print("Deadlines fulfilled in total " + str(len(jobs) - self.missed_deadline_count)) 
+    print("Deadlines fulfilled in total " + str(self.number_of_total_jobs - self.missed_deadline_count)) 
     print("Deadlines missed in total: " + str(self.missed_deadline_count)) 
       
