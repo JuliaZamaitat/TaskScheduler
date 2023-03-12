@@ -5,13 +5,13 @@ class Scheduler:
      self.servers = servers
      self.power_cap = power_cap
      self.energy_cap = energy_cap
-     self.nbrepeat = nbrepeat
+     self.nbrepeat = int(nbrepeat)
      self.job_queue = []
      self.current_time = 0
      self.missed_deadline_count = 0
      self.quantum = 4
      self.number_of_total_jobs = 0
-     self.max_iterations = 250
+     self.max_iterations = 100
 
   def printInfo(self, algorithm):
     if algorithm == 'fifo':
@@ -30,13 +30,17 @@ class Scheduler:
     unscheduled = []
     for job in jobs:
       if job.arrival == self.current_time:
+        print("here")
         job.deadline += self.current_time
+        job.nbPeriod += 1
         self.job_queue.append(job)
         self.number_of_total_jobs += 1
         unscheduled.append(job)
-      elif job.period > 0:
+      elif job.period > 0 and job.nbPeriod < self.nbrepeat:
         if ((self.current_time - job.arrival) % job.period) == 0:
-          dup_job = Job(job.id, job.arrival, job.duration, job.deadline, job.period)
+          print(job.id, job.nbPeriod, job.arrival)
+          job.nbPeriod += 1
+          dup_job = Job(job.id, job.arrival + self.current_time, job.duration, job.deadline, job.period)#TODO: duration hier plus self.currentTime and arrivelDate oder nicht?
           self.job_queue.append(dup_job)
           self.number_of_total_jobs += 1
           unscheduled.append(dup_job)
@@ -152,14 +156,14 @@ class Scheduler:
     server = self.servers[0]
     if server.job:
         server_empty = False
-    if not server_empty or any(job.end < 0 for job in jobs):
+    if not server_empty or any(job.end < 0 for job in jobs) or any((job.nbPeriod < self.nbrepeat) and (job.period > 0) for job in jobs):
         return True
     else:
       return False    
 
   def start(self, algorithm, jobs):
     self.printInfo(algorithm)
-    while(self.current_time <= self.max_iterations):
+    while(self.jobs_left(jobs)) :
       #create a queue of jobs
       #set deadlines and times for jobs
       self.clock(jobs)
