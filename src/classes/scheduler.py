@@ -11,7 +11,6 @@ class Scheduler:
      self.missed_deadline_count = 0
      self.quantum = 4
      self.number_of_total_jobs = 0
-     self.max_iterations = 100
 
   def printInfo(self, algorithm):
     if algorithm == 'fifo':
@@ -30,7 +29,6 @@ class Scheduler:
     unscheduled = []
     for job in jobs:
       if job.arrival == self.current_time:
-        print("here")
         job.deadline += self.current_time
         job.nbPeriod += 1
         self.job_queue.append(job)
@@ -45,6 +43,14 @@ class Scheduler:
           self.number_of_total_jobs += 1
           unscheduled.append(dup_job)
     return unscheduled
+
+  def choose_server(self, job):
+    for server in self.servers:
+        if not server.job:
+            server.call(self.current_time, job)
+            self.job_queue.remove(job)
+            break
+
 
   #checks whether a job has finished and removes it from the server
   def finish_jobs(self):
@@ -102,42 +108,49 @@ class Scheduler:
     deadlines = []
     #sort deadlines of jobs in queue
     job = sorted(self.job_queue, key=lambda j: j.deadline)[0]
-    if self.servers[0].job: #TODO: change to iterate through all servers
-      deadlines.append(self.servers[0].job.deadline)
-    
-    #TODO later: get server with highest deadline
-    #if all servers are full TODO: change later to  if len(deadlines) == len(servers)
-    if self.servers[0].job:
+    for server in self.servers:
+        if server.job:
+          deadlines.append(server.job.deadline)
+        
+   
+    #no empty server available
+    if len(deadlines) == len(self.servers):
+      #choose which server has the deadline that is the longest away
+      server_with_longest_deadline = self.servers[max(range(len(deadlines)), key=deadlines.__getitem__)] if deadlines else None
+
       #if the new job candidate has earlier deadline than the current job
-      if job.relative_deadline < self.servers[0].job.relative_deadline:
+      if job.relative_deadline < server_with_longest_deadline.job.relative_deadline:
         #interrupt executed job
-        self.servers[0].job.end = self.current_time
-        self.job_queue.append(self.servers[0].job)
-        self.servers[0].shutdown(self.current_time)
-        self.servers[0].call(self.current_time, job)
+        server_with_longest_deadline.job.end = self.current_time
+        self.job_queue.append(server_with_longest_deadline.job)
+        server_with_longest_deadline.shutdown(self.current_time)
+        server_with_longest_deadline.call(self.current_time, job)
         self.job_queue.remove(job)
     else:
-      self.servers[0].call(self.current_time, job)
-      self.job_queue.remove(job)
+      self.choose_server(job)
 
   def rms(self): #preemptive
     priorities = []
 
     job = sorted(self.job_queue, key=lambda j: 1/j.period if j.period > 0 else 0, reverse=True)[0]
+    for server in self.servers:
+      if server.job:
+        priorities.append(server.job.period)
+    
     if self.servers[0].job: #TODO: change to iterate through all servers
       priorities.append(self.servers[0].job.period)
     
-    #if all servers are full TODO: change later to  if len(deadlines) == len(servers)
-    if self.servers[0].job:
-      if (1/job.period  if job.period > 0 else 0) > (1/self.servers[0].job.period if self.servers[0].job.period > 0 else 0):
-        self.servers[0].job.end = self.current_time
-        self.job_queue.append(self.servers[0].job)
-        self.servers[0].shutdown(self.current_time)
-        self.servers[0].call(self.current_time, job)
+     #no empty server available
+    if len(priorities) == len(self.servers):  
+      server_with_lowest_priority = self.servers[min(range(len(priorities)), key=priorities.__getitem__)] if priorities else None
+      if (1/job.period  if job.period > 0 else 0) > (1/server_with_lowest_priority.job.period if server_with_lowest_priority.job.period > 0 else 0):
+        server_with_lowest_priority.job.end = self.current_time
+        self.job_queue.append(server_with_lowest_priority.job)
+        server_with_lowest_priority.shutdown(self.current_time)
+        server_with_lowest_priority.call(self.current_time, job)
         self.job_queue.remove(job)
     else:
-        self.servers[0].call(self.current_time, job)
-        self.job_queue.remove(job) 
+        self.choose_server(job)
 
 
   def schedule_tasks(self, algorithm):

@@ -11,7 +11,7 @@ class Server:
         self.job = job
         self.job.start = current_time
         self.job.end = current_time + job.duration
-        print("Job with id: " + str(self.job.id) + " has been scheduled to server 1")
+        print("Job with id: " + str(self.job.id) + " has been scheduled to server " + self.id)
 
   def shutdown(self, current_time=None):
     dup_job = None
