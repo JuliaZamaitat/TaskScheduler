@@ -1,5 +1,7 @@
-# use like python3 main.py fifo src/inputs/test1.txt
+# use like python3 main.py fifo_basic src/inputs/test1.txt
+# use like python3 main.py fifo_basic src/inputs/test1.txt for energy/power caps
 # use like python3 main.py edf src/inputs/test1.txt
+# use like python3 main.py edf_basic src/inputs/test1.txt
 # use like python3 main.py round src/inputs/test1.txt
 # use like python3 main.py rms src/inputs/test1.txt
 
@@ -16,8 +18,8 @@ prepare_result_file()
 scheduler.start(sys.argv[1], parse_jobs())
 
 sort_result_file()
-
+power_results(scheduler.total_power_used)
 #tested on mac
-subprocess.run(["python3", "src/plotter/plotter.py", "results_sorted.txt"])
+subprocess.run(["python3", "src/plotter/plotter.py", "results.txt"])
 
 

@@ -14,3 +14,7 @@ def sort_result_file():
         file.truncate()
         file.writelines(comment_lines)
         file.writelines(sorted_lines)
+
+def power_results(power_stats):
+    with open("power_stats.txt", "w") as file:
+        file.write(str(power_stats))

@@ -3,20 +3,29 @@ from src.classes.job import Job
 class Scheduler:
   def __init__(self, servers, power_cap, energy_cap, nbrepeat):
      self.servers = servers
-     self.power_cap = power_cap
-     self.energy_cap = energy_cap
+     self.power_cap = int(power_cap)
+     self.energy_cap = int(energy_cap)
      self.nbrepeat = int(nbrepeat)
      self.job_queue = []
      self.current_time = 0
      self.missed_deadline_count = 0
      self.quantum = 4
      self.number_of_total_jobs = 0
+     self.energy_consumption = 0
+     self.energy_cap_exceeded = False
+     self.power_cap_exceeded = False
+     self.total_power_used = []
+
 
   def printInfo(self, algorithm):
+    if algorithm == 'fifo_basic':
+      print("Running FIFO without energy/power caps, on one server")
     if algorithm == 'fifo':
-      print("Running FIFO")
+      print("Running FIFO with energy/power caps")
     elif algorithm == 'edf':
       print("Running EDF")
+    elif algorithm == 'edf_basic':
+      print("Running EDF without energy/power caps, on one server")  
     elif algorithm == 'rms':
       print("Running Rate Monotonic") 
     elif algorithm == 'round':
@@ -78,7 +87,13 @@ class Scheduler:
   def clock(self, jobs):
     unscheduled = self.jobs_arrive(jobs) 
     nb_running_jobs = self.finish_jobs()
-   
+
+    #calculate power consumption
+    consumption = 0
+    for server in self.servers:
+      consumption += server.power
+    self.total_power_used.append(consumption)   
+    
     if len(unscheduled) != 0 or nb_running_jobs != 0:
       print("----Time " + str(self.current_time) + "-----")
       print("Waiting jobs: " + str(len(self.job_queue)))
@@ -92,12 +107,46 @@ class Scheduler:
         print("Job with id: " + str(job.id) + " missed its deadline")
 
 
-  def fifo(self):  #not preemptive
+  def fifo_basic(self):  #not preemptive
     job = self.job_queue[0]
-    server = self.servers[0] #TODO: change later to select one avaiable server
+    server = self.servers[0] 
     if not server.job:
       server.call(self.current_time, job)
       self.job_queue.remove(job)
+
+  def is_energy_cap_exceeded(self, job, server):
+    # Energy cap gives the amount of total energy all servers together can consume over the WHOLE time
+    job_duration = server.calculate_power_consumption(job)
+    # total_power = sum([s.power for s in self.servers if s.job]) + server.power
+    job_energy = server.power * job_duration
+    if self.energy_cap > 0 and self.energy_consumption + job_energy > self.energy_cap:
+      print(f"Job with ID {job.id} cannot be scheduled due to energy constraint")
+      return True
+    return False
+  
+  def is_power_cap_exceeded(self, job, server):
+    # Power cap gives the amount of total power all servers together can consume at the SAME time
+    server.calculate_power_consumption(job)
+    total_power = sum([s.power for s in self.servers if s.job]) + server.max_power
+    #if self.total_power_used[-1]+ server.power >= self.power_cap:
+    if total_power  > self.power_cap:
+      print(f"Job with ID {job.id} cannot be scheduled to server {server.id} due to power constraint")
+      return True
+    return False
+
+  def fifo(self):  #not preemptive, several servers, energy/power caps
+    job = self.job_queue[0]
+    for server in self.servers:
+      if not server.job:
+        if self.is_energy_cap_exceeded(job, server):
+          self.energy_cap_exceeded = True
+          break
+        if self.is_power_cap_exceeded(job, server):
+          continue  # Gehe zum nächsten Server
+        server.call_energy_aware(self.current_time, job)
+        self.job_queue.remove(self.job_queue[0])
+        self.energy_consumption += server.power
+        break
 
   def round_robin(self): #not preemptive
     server =  self.servers[0] #TODO: change later to select one avaiable server
@@ -113,7 +162,7 @@ class Scheduler:
       server.call(self.current_time, self.job_queue[0])
       self.job_queue.remove(self.job_queue[0])
 
-  def edf(self): #preemptive
+  def edf_basic(self): #preemptive
     deadlines = []
     #sort deadlines of jobs in queue
     job = sorted(self.job_queue, key=lambda j: j.deadline)[0]
@@ -135,6 +184,58 @@ class Scheduler:
     else:
       self.choose_server(job)
 
+  def edf(self): #using css
+    # Sort job queue by deadline
+    sorted_jobs = sorted(self.job_queue, key=lambda j: j.deadline)
+
+    # Calculate energy usage and residual energy for each server
+    energy_usage = []
+    residual_energy = []
+    for server in self.servers:
+        energy_usage.append(server.get_energy_usage())
+        residual_energy.append(server.power_cap - server.get_energy_usage())
+
+    # Calculate priority of each job
+    priorities = []
+    for job in sorted_jobs:
+        p = job.get_priority()
+        priorities.append(p)
+
+    # Choose jobs to be scheduled
+    chosen_jobs = []
+    while sorted_jobs and sum(energy_usage) < self.power_cap:
+        # Calculate earliest finish time for each job
+        earliest_finish_times = []
+        for i, job in enumerate(sorted_jobs):
+            finish_time = job.get_finish_time()
+            if csms:
+                slack = min(residual_energy) / min(energy_usage)
+                finish_time += slack
+            earliest_finish_times.append(finish_time)
+
+        # Choose job with earliest finish time
+        index = earliest_finish_times.index(min(earliest_finish_times))
+        job = sorted_jobs.pop(index)
+        chosen_jobs.append(job)
+        p = priorities.pop(index)
+        e = energy_usage.pop(index)
+        r = residual_energy.pop(index)
+
+        # Update energy usage and residual energy for chosen server
+        index = self.servers.index(job.server)
+        energy_usage[index] += e
+        residual_energy[index] = self.servers[index].power_cap - energy_usage[index]
+
+    # Assign jobs to servers
+    for job in chosen_jobs:
+        self.choose_server(job)
+
+    # Reschedule remaining jobs
+    for job in sorted_jobs:
+        self.job_queue.remove(job)
+        self.job_queue.append(job)
+   
+
   def rms(self): #preemptive, fixex-priority based on periods
     job = sorted(self.job_queue, key=lambda j: 1/j.period if j.period > 0 else 0, reverse=True)[0]
     busy_servers = [server for server in self.servers if server.job]
@@ -153,27 +254,41 @@ class Scheduler:
   def schedule_tasks(self, algorithm):
     if algorithm == 'fifo':
       self.fifo()
+    if algorithm == 'fifo_basic':
+      self.fifo_basic() 
     elif algorithm == 'edf':
       self.edf()
+    elif algorithm == 'edf_basic':
+      self.edf_basic()  
     elif algorithm == 'round':
       self.round_robin()    
     elif algorithm == 'rms':
       self.rms()  
 
 
+  # def jobs_left(self, jobs):
+  #   server_empty = True
+  #   server = self.servers[0]
+  #   if server.job:
+  #       server_empty = False
+  #   if not server_empty or any(job.end < 0 for job in jobs) or any((job.nbPeriod < self.nbrepeat) and (job.period > 0) for job in jobs):
+  #       return True
+  #   else:
+  #     return False    
   def jobs_left(self, jobs):
     server_empty = True
-    server = self.servers[0]
-    if server.job:
+    for server in self.servers:
+      if server.job:
         server_empty = False
+        break
     if not server_empty or any(job.end < 0 for job in jobs) or any((job.nbPeriod < self.nbrepeat) and (job.period > 0) for job in jobs):
         return True
     else:
-      return False    
+        return False
 
   def start(self, algorithm, jobs):
     self.printInfo(algorithm)
-    while(self.jobs_left(jobs)) :
+    while(self.jobs_left(jobs) and not self.energy_cap_exceeded) :
       #create a queue of jobs
       #set deadlines and times for jobs
       self.clock(jobs)
