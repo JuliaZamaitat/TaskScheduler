@@ -25,7 +25,7 @@ class Scheduler:
     elif algorithm == 'edf':
       print("Running EDF")
     elif algorithm == 'edf_basic':
-      print("Running EDF without energy/power caps, on one server")  
+      print("Running EDF without energy/power caps")  
     elif algorithm == 'rms':
       print("Running Rate Monotonic") 
     elif algorithm == 'round':
@@ -163,12 +163,10 @@ class Scheduler:
       self.job_queue.remove(self.job_queue[0])
 
   def edf_basic(self): #preemptive
-    deadlines = []
     #sort deadlines of jobs in queue
     job = sorted(self.job_queue, key=lambda j: j.deadline)[0]
-    for server in self.servers:
-        if server.job:
-          deadlines.append(server.job.deadline)
+    deadlines = [server.job.deadline for server in self.servers if server.job]
+
     #no empty server available
     if len(deadlines) == len(self.servers):
       #choose which server has the deadline that is the longest away
@@ -184,57 +182,39 @@ class Scheduler:
     else:
       self.choose_server(job)
 
-  def edf(self): #using css
-    # Sort job queue by deadline
-    sorted_jobs = sorted(self.job_queue, key=lambda j: j.deadline)
-
-    # Calculate energy usage and residual energy for each server
-    energy_usage = []
-    residual_energy = []
-    for server in self.servers:
-        energy_usage.append(server.get_energy_usage())
-        residual_energy.append(server.power_cap - server.get_energy_usage())
-
-    # Calculate priority of each job
-    priorities = []
-    for job in sorted_jobs:
-        p = job.get_priority()
-        priorities.append(p)
-
-    # Choose jobs to be scheduled
-    chosen_jobs = []
-    while sorted_jobs and sum(energy_usage) < self.power_cap:
-        # Calculate earliest finish time for each job
-        earliest_finish_times = []
-        for i, job in enumerate(sorted_jobs):
-            finish_time = job.get_finish_time()
-            if csms:
-                slack = min(residual_energy) / min(energy_usage)
-                finish_time += slack
-            earliest_finish_times.append(finish_time)
-
-        # Choose job with earliest finish time
-        index = earliest_finish_times.index(min(earliest_finish_times))
-        job = sorted_jobs.pop(index)
-        chosen_jobs.append(job)
-        p = priorities.pop(index)
-        e = energy_usage.pop(index)
-        r = residual_energy.pop(index)
-
-        # Update energy usage and residual energy for chosen server
-        index = self.servers.index(job.server)
-        energy_usage[index] += e
-        residual_energy[index] = self.servers[index].power_cap - energy_usage[index]
-
-    # Assign jobs to servers
-    for job in chosen_jobs:
-        self.choose_server(job)
-
-    # Reschedule remaining jobs
-    for job in sorted_jobs:
+  def choose_server_with_most_power(self, job):
+    # Calculate the speeds of the servers using Constant Speed Scaling
+    available_servers = [server for server in self.servers if not server.job]
+    speeds = [1 * (server.max_power / 2500) ** (1 / 3) for server in available_servers] #1 = server.performance, 2.500 =max_energy over time
+    # Getting the server with the highest speed
+    for server, speed in zip(available_servers, speeds):
+        if self.is_energy_cap_exceeded(job, server):
+            self.energy_cap_exceeded = True
+            break
+        if self.is_power_cap_exceeded(job, server):
+            continue
+        # Find the server with the highest speed
+        max_speed_server = available_servers[speeds.index(max(speeds))]
+        max_speed_server.call_energy_aware(self.current_time, job)
         self.job_queue.remove(job)
-        self.job_queue.append(job)
-   
+        break
+    
+  def edf(self):
+    job = sorted(self.job_queue, key=lambda j: j.deadline)[0]
+    deadlines = [server.job.deadline for server in self.servers if server.job]
+    #no empty server available
+    if len(deadlines) == len(self.servers):
+    # Get the server with the highest deadline
+      server_with_longest_deadline = self.servers[max(range(len(deadlines)), key=deadlines.__getitem__)] if deadlines else None
+      if job.relative_deadline < server_with_longest_deadline.job.relative_deadline:
+          # End the currently executing job
+          server_with_longest_deadline.job.end = self.current_time
+          self.job_queue.append(server_with_longest_deadline.job)
+          server_with_longest_deadline.shutdown(self.current_time)
+          server_with_longest_deadline.call_energy_aware(self.current_time, job) #normally check here as well if energy caps are kept, but as speeds are the same here, we simply replace the one by the other and assume it's the same
+          self.job_queue.remove(job)
+    else:
+      self.choose_server_with_most_power(job)
 
   def rms(self): #preemptive, fixex-priority based on periods
     job = sorted(self.job_queue, key=lambda j: 1/j.period if j.period > 0 else 0, reverse=True)[0]

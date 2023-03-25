@@ -11,7 +11,6 @@ class Server:
   def calculate_power_consumption(self, job):
     frequency = self.frequencies[-1]
     job_duration = job.relative_duration / frequency
-    
     return round(job_duration, 1)
   
   def call_energy_aware(self, current_time, job):
@@ -23,8 +22,9 @@ class Server:
         
         max_frequency = max(self.frequencies)
         frequency = self.frequencies[-1]
-        self.speed = frequency / max_frequency
+        self.speed = frequency / max_frequency #all will have the same speed in my example here
         self.power = self.max_power * self.speed**2 #Das Quadrat der Slowdown-Rate wird verwendet, da die Leistungsaufnahme quadratisch mit der Taktfrequenz abnimmt
+        print(self.power)
         self.job.end = int(round(current_time + job_duration,0))
         print("Job with id: " + str(self.job.id) + " has been scheduled to server " + self.id)
  
