@@ -1,7 +1,7 @@
 from src.classes.job import Job
 
 class Scheduler:
-  def __init__(self, servers, power_cap, energy_cap, nbrepeat):
+  def __init__(self, servers, power_cap, energy_cap, nbrepeat, dependencies):
      self.servers = servers
      self.power_cap = int(power_cap)
      self.energy_cap = int(energy_cap)
@@ -15,6 +15,7 @@ class Scheduler:
      self.energy_cap_exceeded = False
      self.power_cap_exceeded = False
      self.total_power_used = []
+     self.dependencies = dependencies
 
 
   def printInfo(self, algorithm):
@@ -29,7 +30,9 @@ class Scheduler:
     elif algorithm == 'rms':
       print("Running Rate Monotonic") 
     elif algorithm == 'round':
-      print("Running Round Robin")      
+      print("Running Round Robin")
+    elif algorithm == 'wavefront':
+      print("Running Wavefront (as early as possible)")           
     else:
       print("Not supported algorithm")   
 
@@ -231,6 +234,45 @@ class Scheduler:
     else:
         self.choose_server(job)
 
+  def waves(self):
+    waves = [[self.dependencies[0][0]]]
+    while True:
+        current_wave = []
+        for wave_item in waves[-1]:
+            for dependency in self.dependencies:
+                if dependency[0] == wave_item:
+                    current_wave.append(dependency[1])
+        if not current_wave:
+            break
+        waves.append(current_wave)
+    return waves
+
+  
+  def wavefront(self):
+    job = self.job_queue[0]
+    waves = self.waves()
+    if job.id in sum(waves, []):
+      for wave in waves:
+        if job.id in wave:
+          server_index = wave.index(job.id) 
+          server_index = server_index % len(self.servers)
+          server = self.servers[server_index] #ensure they run on the same server
+          if server.job is not None :
+            job_ids = [job for wave in waves for job in wave]
+            if server.job.id not in job_ids:
+              server.job.end = self.current_time
+              self.job_queue.append(server.job)
+              server.shutdown(self.current_time)
+              server.call(self.current_time, job)
+              self.job_queue.remove(job)
+          else:
+            server.call(self.current_time, job)
+            self.job_queue.remove(job)
+            break
+    else:
+      self.choose_server(job)
+
+
   def schedule_tasks(self, algorithm):
     if algorithm == 'fifo':
       self.fifo()
@@ -243,18 +285,10 @@ class Scheduler:
     elif algorithm == 'round':
       self.round_robin()    
     elif algorithm == 'rms':
-      self.rms()  
-
-
-  # def jobs_left(self, jobs):
-  #   server_empty = True
-  #   server = self.servers[0]
-  #   if server.job:
-  #       server_empty = False
-  #   if not server_empty or any(job.end < 0 for job in jobs) or any((job.nbPeriod < self.nbrepeat) and (job.period > 0) for job in jobs):
-  #       return True
-  #   else:
-  #     return False    
+      self.rms() 
+    elif algorithm == 'wavefront':
+      self.wavefront()    
+ 
   def jobs_left(self, jobs):
     server_empty = True
     for server in self.servers:

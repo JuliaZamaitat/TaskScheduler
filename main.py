@@ -10,7 +10,7 @@ from src.classes.scheduler import Scheduler
 from src.file_reader import *
 import subprocess
 
-scheduler = Scheduler(parse_servers(), metrics['power_cap'], metrics['energy_cap'], metrics['repeat'])
+scheduler = Scheduler(parse_servers(), metrics['power_cap'], metrics['energy_cap'], metrics['repeat'], parse_dependencies())
 
 prepare_result_file()
 # run the scheduler with the first argument given on the command line
