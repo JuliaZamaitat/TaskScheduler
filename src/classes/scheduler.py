@@ -1,4 +1,5 @@
 from src.classes.job import Job
+import networkx as nx
 
 class Scheduler:
   def __init__(self, servers, power_cap, energy_cap, nbrepeat, dependencies):
@@ -32,7 +33,9 @@ class Scheduler:
     elif algorithm == 'round':
       print("Running Round Robin")
     elif algorithm == 'wavefront':
-      print("Running Wavefront (as early as possible)")           
+      print("Running Wavefront (as early as possible)")
+    elif algorithm == 'cpm':
+      print("Running Cluster Path Merge")                
     else:
       print("Not supported algorithm")   
 
@@ -200,6 +203,7 @@ class Scheduler:
         max_speed_server = available_servers[speeds.index(max(speeds))]
         max_speed_server.call_energy_aware(self.current_time, job)
         self.job_queue.remove(job)
+        self.energy_consumption += max_speed_server.power
         break
     
   def edf(self):
@@ -216,6 +220,8 @@ class Scheduler:
           server_with_longest_deadline.shutdown(self.current_time)
           server_with_longest_deadline.call_energy_aware(self.current_time, job) #normally check here as well if energy caps are kept, but as speeds are the same here, we simply replace the one by the other and assume it's the same
           self.job_queue.remove(job)
+          self.energy_consumption += server_with_longest_deadline.power
+
     else:
       self.choose_server_with_most_power(job)
 
@@ -247,7 +253,6 @@ class Scheduler:
         waves.append(current_wave)
     return waves
 
-  
   def wavefront(self):
     job = self.job_queue[0]
     waves = self.waves()
@@ -272,6 +277,33 @@ class Scheduler:
     else:
       self.choose_server(job)
 
+  def find_critical_path(self):
+    G = nx.DiGraph(self.dependencies)
+    longest_path = max(nx.all_simple_paths(G, source=0, target=8), key=len)
+    print(longest_path)  # Output: [0, 3, 5, 8]
+
+  def cpm(self):
+    print("Todo")
+  #   G = nx.DiGraph()
+  #   for job in self.job_queue:
+  #       G.add_node(job.id, weight=1)
+  #   for dependency in self.dependencies:
+  #       G.add_edge(dependency[0], dependency[1])
+  #   longest_path = max(nx.all_simple_paths(G, source=0, target=8), key=len)
+  #   for job_id in longest_path:
+  #       job = None
+  #       for j in self.job_queue:
+  #           if j.id == job_id:
+  #               job = j
+  #               break
+  #       server = self.servers[longest_path.index(job_id) % len(self.servers)]
+  #       if server.job is not None:
+  #           server.job.end = self.current_time
+  #           self.job_queue.append(server.job)
+  #           server.shutdown(self.current_time)
+  #       job.start = self.current_time
+  #       server.call(self.current_time, job)
+  #       self.job_queue.remove(job)
 
   def schedule_tasks(self, algorithm):
     if algorithm == 'fifo':
@@ -287,7 +319,9 @@ class Scheduler:
     elif algorithm == 'rms':
       self.rms() 
     elif algorithm == 'wavefront':
-      self.wavefront()    
+      self.wavefront()
+    elif algorithm == 'cpm':
+      self.cpm()         
  
   def jobs_left(self, jobs):
     server_empty = True
@@ -314,4 +348,8 @@ class Scheduler:
     print("\n--------------STATS----------")
     print("Deadlines fulfilled in total " + str(self.number_of_total_jobs - self.missed_deadline_count)) 
     print("Deadlines missed in total: " + str(self.missed_deadline_count)) 
+    print("Energy used in total: " + str(self.energy_consumption)) 
+    print("Makespan: " + str(self.current_time -1 )) 
+
+
       

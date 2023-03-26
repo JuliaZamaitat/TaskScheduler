@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 def prepare_result_file():
     filename = "results.txt"
     with open(filename, "w") as file:
@@ -18,3 +20,11 @@ def sort_result_file():
 def power_results(power_stats):
     with open("power_stats.txt", "w") as file:
         file.write(str(power_stats))
+    plot_power_consumption(power_stats)    
+
+def plot_power_consumption(power_stats):
+    time = range(len(power_stats))
+    plt.plot(time, power_stats)
+    plt.xlabel('Time')
+    plt.ylabel('Power Consumption')
+    plt.savefig("power_consumption.png")

@@ -19,6 +19,7 @@ scheduler.start(sys.argv[1], parse_jobs())
 
 sort_result_file()
 power_results(scheduler.total_power_used)
+
 #tested on mac
 subprocess.run(["python3", "src/plotter/plotter.py", "results.txt"])
 
