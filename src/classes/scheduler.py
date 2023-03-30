@@ -17,6 +17,8 @@ class Scheduler:
      self.power_cap_exceeded = False
      self.total_power_used = []
      self.dependencies = dependencies
+     self.waves = None
+     self.scheduled_jobs = []
 
 
   def printInfo(self, algorithm):
@@ -240,8 +242,10 @@ class Scheduler:
     else:
         self.choose_server(job)
 
-  def waves(self):
-    waves = [[self.dependencies[0][0]]]
+  
+  def calculate_waves(self):
+    independent_tasks = [task.id for task in self.job_queue if not any(task.id == dep[1] for dep in self.dependencies)]
+    waves = [[self.dependencies[0][0]]] if self.dependencies else []
     while True:
         current_wave = []
         for wave_item in waves[-1]:
@@ -251,31 +255,76 @@ class Scheduler:
         if not current_wave:
             break
         waves.append(current_wave)
-    return waves
+    waves[0].pop(0)
+    for t in independent_tasks:
+      waves[0].insert(len(waves)-1,t)
+    self.waves = waves
+
 
   def wavefront(self):
-    job = self.job_queue[0]
-    waves = self.waves()
-    if job.id in sum(waves, []):
-      for wave in waves:
-        if job.id in wave:
-          server_index = wave.index(job.id) 
-          server_index = server_index % len(self.servers)
-          server = self.servers[server_index] #ensure they run on the same server
-          if server.job is not None :
-            job_ids = [job for wave in waves for job in wave]
-            if server.job.id not in job_ids:
-              server.job.end = self.current_time
-              self.job_queue.append(server.job)
-              server.shutdown(self.current_time)
-              server.call(self.current_time, job)
-              self.job_queue.remove(job)
-          else:
-            server.call(self.current_time, job)
-            self.job_queue.remove(job)
-            break
-    else:
-      self.choose_server(job)
+    if self.waves is None:
+        self.calculate_waves()
+    if len(self.waves) != 0:  
+        wave = self.waves[0]
+        for job in self.job_queue:
+            if job.id in wave:
+                if len(self.get_dependencies(job.id)) > 0:
+                    dependent_job_ids = self.get_dependencies(job.id)
+                    dependent_jobs = []
+                    for j in dependent_job_ids:
+                      for sj in self.scheduled_jobs:
+                         if j == sj.id:
+                            dependent_jobs.append(sj)
+                    if all(self.current_time >= j.start + j.duration for j in dependent_jobs): 
+                      server = self.get_available_server()
+                      if server is not None:
+                          server.call(self.current_time, job)
+                          self.scheduled_jobs.append(job)
+                          self.job_queue.remove(job)
+                          wave.remove(job.id)
+                          if len(wave) == 0:
+                              self.waves.pop(0)
+                      else:
+                          print("No available server.")
+                          break
+                else:
+                    server = self.get_available_server()
+                    if server is not None:
+                      server.call(self.current_time, job)
+                      self.scheduled_jobs.append(job)
+                      self.job_queue.remove(job)
+                      wave.remove(job.id)
+                      if len(wave) == 0:
+                          self.waves.pop(0)
+                    else:
+                      print("No available server.")
+                      break        
+
+
+  def get_dependencies(self, job_id):
+    dependent_tasks = []
+    for dep in self.dependencies:
+        if dep[0] == job_id:
+            dependent_tasks.append(dep[1])
+            print(dep[1])
+    for dep in self.dependencies:
+        if dep[1] == job_id and dep[0] not in dependent_tasks:
+            dependent_tasks.append(dep[0])
+            print(dep[0])
+    return dependent_tasks
+
+
+  def get_available_server(self):
+    # Sort servers by ascending order of the number of running jobs
+    available_servers = self.servers
+    # Iterate through the sorted list of servers
+    for server in available_servers:
+        # Check if the server has any available resources
+        if server.job is None:
+            return server
+    # If no available server is found, return None
+    return None
+
 
   def find_critical_path(self):
     G = nx.DiGraph(self.dependencies)

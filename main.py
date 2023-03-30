@@ -5,6 +5,11 @@
 # use like python3 main.py round src/inputs/test1.txt
 # use like python3 main.py rms src/inputs/test1.txt
 
+# different test file using arrival time 0 for all tasks:
+# use like python3 main.py wavefront src/inputs/test2.txt
+# use like python3 main.py cpm src/inputs/test2.txt
+
+
 from src.results import *
 from src.classes.scheduler import Scheduler
 from src.file_reader import *
