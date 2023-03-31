@@ -1,5 +1,9 @@
 import matplotlib.pyplot as plt
 
+"""
+Helper file to prepare files for scheduling table and power consumption graph.
+"""
+
 def prepare_result_file():
     filename = "results.txt"
     with open(filename, "w") as file:
