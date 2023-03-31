@@ -84,7 +84,8 @@ ax1 = fig1.add_subplot(111)
 
 # Keep the scale on integers
 ax1.set_yticks([i for i in range(int(server_count) + 1)])
-ax1.set_xticks([i for i in range(int(simulation_time) + 1)])
+#ax1.set_xticks([i for i in range(int(simulation_time) + 1)])
+ax1.set_xticks([i for i in range(int(simulation_time) + 1) if i % 5 == 0])
 
 # Set labels
 ax1.set_ylabel("Server ID")

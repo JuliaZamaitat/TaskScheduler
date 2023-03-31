@@ -115,9 +115,9 @@ class Scheduler:
         print("Job with ID " + str(job.id) + ", duration: " + str(job.duration) + ", period: " + str(job.period) + " arrives with deadline " + str(job.deadline))
     
     for job in self.job_queue:
-      if job.deadline == (self.current_time):
+      if job.relative_deadline == (self.current_time):
         self.missed_deadline_count += 1
-        print("Job with id: " + str(job.id) + " missed its deadline")
+        print("Job with id: " + str(job.id) + " missed its deadline " + str(job.relative_deadline))
 
   """
   Checks whether there are still jobs that are not finished yet.
@@ -250,11 +250,12 @@ class Scheduler:
     if server.job is not None and server.job.quantum == self.quantum:
       old_job = server.job
       server.job.end = self.current_time
-      duration_left = old_job.duration - (self.current_time - old_job.start) 
-      dup_job = server.shutdown(self.current_time)
-      dup_job.duration = duration_left
-      print("Duration of job " + str(dup_job.id) + " left: " + str(dup_job.duration))
-      self.job_queue.append(dup_job)
+      duration_left = old_job.duration - (self.current_time+1 - old_job.start) 
+      if (duration_left != 0):
+        dup_job = server.shutdown(self.current_time)
+        dup_job.duration = duration_left
+        print("Duration of job " + str(dup_job.id) + " left: " + str(dup_job.duration))
+        self.job_queue.append(dup_job)
     if not server.job:
       server.schedule(self.current_time, self.job_queue[0])
       self.job_queue.remove(self.job_queue[0])
@@ -290,7 +291,7 @@ class Scheduler:
     available_servers = [server for server in self.servers if not server.job]
     speeds = [1 * (server.max_power / self.power_cap) ** (1 / 3) for server in available_servers] 
     # Getting the server with the highest speed
-    for server in zip(available_servers, speeds): #producec (server_id, speed)
+    for server, speed in zip(available_servers, speeds): #producec (server_id, speed)
         # Check if selecting this server would exceed the energy cap
         if self.is_energy_cap_exceeded(job, server):
             self.energy_cap_exceeded = True
@@ -335,7 +336,6 @@ class Scheduler:
     busy_servers = [server for server in self.servers if server.job]
     #no server available
     if len(busy_servers) == len(self.servers):
-      # print("All servers busy")  
       server_with_lowest_priority = min(self.servers, key=lambda s: s.job.period)
       #compare priorities of current job on server and job to be scheduled
       if (1/job.period if job.period > 0 else 0) > (1/server_with_lowest_priority.job.period if server_with_lowest_priority.job.period > 0 else 0):
