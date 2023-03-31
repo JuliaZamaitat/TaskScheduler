@@ -19,6 +19,7 @@ class Scheduler:
      self.dependencies = dependencies
      self.waves = None
      self.scheduled_jobs = []
+     self.sorted_graphs = None
 
 
   def printInfo(self, algorithm):
@@ -61,11 +62,6 @@ class Scheduler:
     return unscheduled
 
   def choose_server(self, job):
-    # for server in self.servers:
-    #     if not server.job:
-    #         server.call(self.current_time, job)
-    #         self.job_queue.remove(job)
-    #         break
     available_servers = [server for server in self.servers if not server.job]
     if not available_servers:
         print("No available servers to choose from.")
@@ -242,8 +238,8 @@ class Scheduler:
     else:
         self.choose_server(job)
 
-  
   def calculate_waves(self):
+    print("len", len(self.job_queue))
     independent_tasks = [task.id for task in self.job_queue if not any(task.id == dep[1] for dep in self.dependencies)]
     waves = [[self.dependencies[0][0]]] if self.dependencies else []
     while True:
@@ -267,50 +263,45 @@ class Scheduler:
     if len(self.waves) != 0:  
         wave = self.waves[0]
         for job in self.job_queue:
-            if job.id in wave:
-                if len(self.get_dependencies(job.id)) > 0:
-                    dependent_job_ids = self.get_dependencies(job.id)
-                    dependent_jobs = []
-                    for j in dependent_job_ids:
-                      for sj in self.scheduled_jobs:
-                         if j == sj.id:
-                            dependent_jobs.append(sj)
-                    if all(self.current_time >= j.start + j.duration for j in dependent_jobs): 
-                      server = self.get_available_server()
-                      if server is not None:
-                          server.call(self.current_time, job)
-                          self.scheduled_jobs.append(job)
-                          self.job_queue.remove(job)
-                          wave.remove(job.id)
-                          if len(wave) == 0:
-                              self.waves.pop(0)
-                      else:
-                          print("No available server.")
-                          break
+          if job.id in wave:
+            if len(self.get_dependencies(job.id)) > 0:
+              dependent_job_ids = self.get_dependencies(job.id)
+              dependent_jobs = []
+              for j in dependent_job_ids:
+                for sj in self.scheduled_jobs:
+                  if j == sj.id:
+                    dependent_jobs.append(sj)
+              if all(self.current_time >= j.start + j.duration for j in dependent_jobs): 
+                server = self.get_available_server()
+                if server is not None:
+                  server.call(self.current_time, job)
+                  self.scheduled_jobs.append(job)
+                  self.job_queue.remove(job)
+                  wave.remove(job.id)
+                  if len(wave) == 0:
+                    self.waves.pop(0)
                 else:
-                    server = self.get_available_server()
-                    if server is not None:
-                      server.call(self.current_time, job)
-                      self.scheduled_jobs.append(job)
-                      self.job_queue.remove(job)
-                      wave.remove(job.id)
-                      if len(wave) == 0:
-                          self.waves.pop(0)
-                    else:
-                      print("No available server.")
-                      break        
+                  print("No available server.")
+                  break
+            else:
+              server = self.get_available_server()
+              if server is not None:
+                server.call(self.current_time, job)
+                self.scheduled_jobs.append(job)
+                self.job_queue.remove(job)
+                wave.remove(job.id)
+                if len(wave) == 0:
+                  self.waves.pop(0)
+              else:
+                print("No available server.")
+                break        
 
 
   def get_dependencies(self, job_id):
     dependent_tasks = []
     for dep in self.dependencies:
-        if dep[0] == job_id:
-            dependent_tasks.append(dep[1])
-            print(dep[1])
-    for dep in self.dependencies:
         if dep[1] == job_id and dep[0] not in dependent_tasks:
             dependent_tasks.append(dep[0])
-            print(dep[0])
     return dependent_tasks
 
 
@@ -326,34 +317,74 @@ class Scheduler:
     return None
 
 
-  def find_critical_path(self):
-    G = nx.DiGraph(self.dependencies)
-    longest_path = max(nx.all_simple_paths(G, source=0, target=8), key=len)
-    print(longest_path)  # Output: [0, 3, 5, 8]
+  def get_sorted_graphs(self):
+    sub_paths = self.create_longest_subpaths()
+    independent_tasks = [task.id for task in self.job_queue if not any(task.id == dep[1] for dep in self.dependencies)]
+    for t in independent_tasks:
+       sub_paths.append([t])
+    return sub_paths   
 
+  def create_longest_subpaths(self):
+    # Erstellen eines gerichteten Graphen
+    G = nx.DiGraph()
+    # Füge Kanten basierend auf den gegebenen Abhängigkeiten hinzu
+    for edge in self.dependencies:
+        G.add_edge(edge[0], edge[1])
+    # Sammle alle längsten Sub-Paths von jedem Startknoten aus
+    longest_subpaths = []
+    for source in G.nodes():
+        if G.in_degree(source) == 0:  # Nur für Startknoten
+            for target in G.nodes():
+                if G.out_degree(target) == 0:  # Nur für Endknoten
+                    if nx.has_path(G, source, target):
+                        path = nx.shortest_path(G, source, target)
+                        longest_subpaths.append(path)
+
+    #remove nodes that already appear in the longer graph
+    for i, l in enumerate(longest_subpaths):
+      if(i + 1 != len(longest_subpaths)):
+        for e in list(l):  # Create a copy of the list 'l' to iterate over
+          if e in longest_subpaths[i + 1]:
+            l.remove(e)            
+    longest_subpaths.sort(key=len, reverse=True)
+    return longest_subpaths
+
+  
   def cpm(self):
-    print("Todo")
-  #   G = nx.DiGraph()
-  #   for job in self.job_queue:
-  #       G.add_node(job.id, weight=1)
-  #   for dependency in self.dependencies:
-  #       G.add_edge(dependency[0], dependency[1])
-  #   longest_path = max(nx.all_simple_paths(G, source=0, target=8), key=len)
-  #   for job_id in longest_path:
-  #       job = None
-  #       for j in self.job_queue:
-  #           if j.id == job_id:
-  #               job = j
-  #               break
-  #       server = self.servers[longest_path.index(job_id) % len(self.servers)]
-  #       if server.job is not None:
-  #           server.job.end = self.current_time
-  #           self.job_queue.append(server.job)
-  #           server.shutdown(self.current_time)
-  #       job.start = self.current_time
-  #       server.call(self.current_time, job)
-  #       self.job_queue.remove(job)
+    if self.sorted_graphs is None: 
+      self.sorted_graphs = self.get_sorted_graphs()
+    if len(self.sorted_graphs) != 0:
+      for graph in self.sorted_graphs:
+        for job in self.job_queue:
+          if job.id in graph:
+            if len(self.get_dependencies(job.id)) > 0:
+              dependent_job_ids = self.get_dependencies(job.id)
+              dependent_jobs = []
+              for j in dependent_job_ids:
+                if any(obj.id == j for obj in self.scheduled_jobs): #check if dependent job was already scheduled
+                  for sj in self.scheduled_jobs:
+                    if j == sj.id:
+                      dependent_jobs.append(sj)
+                else: #check if dependent job is still in queue
+                  for qj in self.job_queue:
+                    if j == qj.id:
+                      dependent_jobs.append(qj)
+              if all(self.current_time >= j.start + j.duration for j in dependent_jobs): #all dependent jobs are finished
+                server_index = self.sorted_graphs.index(graph) % len(self.servers)
+                server = self.servers[server_index]
+                if server is not None and server.job is None:
+                  server.call(self.current_time, job)
+                  self.scheduled_jobs.append(job)
+                  self.job_queue.remove(job) 
+            else:
+              server_index = self.sorted_graphs.index(graph) % len(self.servers)
+              server = self.servers[server_index]
+              if server is not None and server.job is None:
+                server.call(self.current_time, job)
+                self.scheduled_jobs.append(job)
+                self.job_queue.remove(job)         
 
+          
   def schedule_tasks(self, algorithm):
     if algorithm == 'fifo':
       self.fifo()
