@@ -2,10 +2,13 @@ import sys
 from src.classes.job import Job
 from src.classes.server import Server
 
+"""
+Helper file to parse input of test files.
+"""
+
 split_path = sys.argv[2].split("/")
 file_path = "/".join(split_path[:-1])
 
-# use as python main.py inputs/test1.txt
  # store values into a Map like {job_file': 'jobs.txt', 'server_file': 'servers.txt',...}
 def parse_test_file():
     values = {}
@@ -18,7 +21,6 @@ def parse_test_file():
 
 metrics = parse_test_file()
 
-#parses servers and returns Server objects in an array
 def parse_servers(server_file=None):
     servers = []
     if server_file is None:
@@ -33,7 +35,6 @@ def parse_servers(server_file=None):
             servers.append(Server(elements[0], frequencies))
     return servers
 
-#parses dependencies and returns pairs in a nested array [[0,3], [0,4]...]
 def parse_dependencies():
     dependencies = []
     dependencies_file = file_path + "/" + metrics["dependency_file"]
@@ -45,7 +46,6 @@ def parse_dependencies():
             dependencies.append(dependency)
     return dependencies
 
- #reads the given job_file and returns a list of jobs 
 def parse_jobs(job_file=None):
     jobs = []
     if job_file is None:
